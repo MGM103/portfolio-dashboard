@@ -9,6 +9,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 type ApiResponse struct {
@@ -34,11 +36,14 @@ type AssetDetail struct {
 }
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
+	}
+
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest", nil)
 	if err != nil {
-		log.Print(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	assetIds := []string{"1", "1027", "5426", "22861", "32684", "30494", "29587", "26997", "6953", "12220", "7429", "28932", "11396", "30661", "18934", "32492"}
@@ -47,8 +52,9 @@ func main() {
 	q.Add("id", strings.Join(assetIds, ","))
 	q.Add("convert", strings.Join(currencies, ","))
 
+	ApiKey := os.Getenv("CMC_API_KEY")
 	req.Header.Set("Accepts", "application/json")
-	req.Header.Add("X-CMC_PRO_API_KEY", "b25a7f35-2400-4192-84d7-71dba52a2cdd")
+	req.Header.Add("X-CMC_PRO_API_KEY", ApiKey)
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := client.Do(req)
