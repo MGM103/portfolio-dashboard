@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type ApiResponse struct {
@@ -46,6 +48,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	assetDb, err := initAssetDB("./assetData.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer assetDb.Close()
+
 	assetIds := []string{"1", "1027", "5426", "22861", "32684", "30494", "29587", "26997", "6953", "12220", "7429", "28932", "11396", "30661", "18934", "32492"}
 	currencies := []string{"AUD"}
 	q := url.Values{}
@@ -59,15 +67,13 @@ func main() {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error sending request to server")
-		os.Exit(1)
+		log.Fatal(err)
 	}
 	defer resp.Body.Close()
 
 	var response ApiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		fmt.Println("Error decoding JSON", err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	var result []AssetDetail
@@ -93,4 +99,32 @@ func main() {
 	for _, asset := range result {
 		fmt.Printf("%s (%d): $%.2f\t$%.2f\n", asset.Symbol, asset.Id, asset.Price, asset.MarketCap)
 	}
+}
+
+func initAssetDB(path string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Make sure the connection is valid
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Ensure table exists
+	createTableStmt := `
+	CREATE TABLE IF NOT EXISTS assets (
+		id INTEGER PRIMARY KEY,
+		symbol TEXT NOT NULL,
+		price REAL,
+		market_cap REAL
+	)`
+	if _, err := db.Exec(createTableStmt); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create table: %w", err)
+	}
+
+	return db, nil
 }
