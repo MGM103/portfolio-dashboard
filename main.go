@@ -14,6 +14,27 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type Operation int
+
+const (
+	PortfolioValue Operation = iota
+	AddAsset
+	Exit
+)
+
+func (o Operation) String() string {
+	switch o {
+	case PortfolioValue:
+		return "Portfolio worth"
+	case AddAsset:
+		return "Add asset"
+	case Exit:
+		return "Exit"
+	default:
+		return "unknown"
+	}
+}
+
 type ApiResponse struct {
 	Data map[string]AssetResponse `json:"data"`
 }
@@ -47,26 +68,40 @@ func main() {
 	}
 	defer assetDb.Close()
 
-	var newAssetId string
-	fmt.Println("Enter an asset (id): ")
-	fmt.Scanf("%s", &newAssetId)
+	var currentOperation Operation
+programLoop:
+	for {
+		fmt.Println("What would you like to do:\n[0]\tSee portfolio worth\n[1]\tAdd new asset to portfolio\n[2]\tExit portfolio dashboard")
+		fmt.Scanf("%d", &currentOperation)
 
-	err = addAsset(assetDb, newAssetId)
-	if err != nil {
-		log.Fatal("Adding new asset failed: ", err)
-	}
+		switch currentOperation {
+		case PortfolioValue:
+			assets, err := getAllAssets(assetDb)
+			if err != nil {
+				log.Fatal(err)
+			}
 
-	assets, err := getAllAssets(assetDb)
-	if err != nil {
-		log.Fatal(err)
-	}
+			sort.Slice(assets, func(i, j int) bool {
+				return assets[i].MarketCap > assets[j].MarketCap
+			})
 
-	sort.Slice(assets, func(i, j int) bool {
-		return assets[i].MarketCap > assets[j].MarketCap
-	})
+			for _, asset := range assets {
+				fmt.Printf("%s (%d): $%.2f\t$%.2f\n", asset.Symbol, asset.Id, asset.Price, asset.MarketCap)
+			}
+		case AddAsset:
+			var newAssetId string
+			fmt.Println("Enter an assets (id): ")
+			fmt.Scanf("%s", &newAssetId)
 
-	for _, asset := range assets {
-		fmt.Printf("%s (%d): $%.2f\t$%.2f\n", asset.Symbol, asset.Id, asset.Price, asset.MarketCap)
+			err = addAsset(assetDb, newAssetId)
+			if err != nil {
+				log.Fatal("Adding new asset failed: ", err)
+			}
+		case Exit:
+			break programLoop
+		default:
+			break programLoop
+		}
 	}
 }
 
