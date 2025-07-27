@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
@@ -68,11 +71,15 @@ func main() {
 	}
 	defer assetDb.Close()
 
+	loopPrompt := "What would you like to do:\n[0]\tSee portfolio worth\n[1]\tAdd new asset to portfolio\n[2]\tExit portfolio dashboard"
 	var currentOperation Operation
 programLoop:
 	for {
-		fmt.Println("What would you like to do:\n[0]\tSee portfolio worth\n[1]\tAdd new asset to portfolio\n[2]\tExit portfolio dashboard")
-		fmt.Scanf("%d", &currentOperation)
+		currentOperation, err = readOperatonInput(loopPrompt)
+		if err != nil {
+			fmt.Println("An error occurred: ", err)
+			continue
+		}
 
 		switch currentOperation {
 		case PortfolioValue:
@@ -85,9 +92,12 @@ programLoop:
 				return assets[i].MarketCap > assets[j].MarketCap
 			})
 
+			fmt.Println()
 			for _, asset := range assets {
 				fmt.Printf("%s (%d): $%.2f\t$%.2f\n", asset.Symbol, asset.Id, asset.Price, asset.MarketCap)
 			}
+
+			fmt.Println()
 		case AddAsset:
 			var newAssetId string
 			fmt.Println("Enter an assets (id): ")
@@ -97,12 +107,31 @@ programLoop:
 			if err != nil {
 				log.Fatal("Adding new asset failed: ", err)
 			}
+
+			fmt.Println()
 		case Exit:
 			break programLoop
 		default:
-			break programLoop
+			fmt.Println("Please enter a valid input")
 		}
 	}
+}
+
+func readOperatonInput(prompt string) (Operation, error) {
+	fmt.Println(prompt)
+
+	scanner := bufio.NewScanner(os.Stdin)
+	if !scanner.Scan() {
+		return Exit, fmt.Errorf("Invalid input provided.")
+	}
+
+	input := strings.TrimSpace(scanner.Text())
+	operation, err := strconv.Atoi(input)
+	if err != nil {
+		return Exit, fmt.Errorf("Input should be numeric")
+	}
+
+	return Operation(operation), nil
 }
 
 func getAssetData(id string) (AssetDetail, error) {
