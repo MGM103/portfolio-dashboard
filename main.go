@@ -20,17 +20,26 @@ import (
 type Operation int
 
 const (
-	PortfolioValue Operation = iota
-	AddAsset
+	GetPortfolioValue Operation = iota
+	AddAssetsPortfolio
+	ShowWatchList
+	AddAssetsWatchList
+	RemoveAssetsWatchList
 	Exit
 )
 
 func (o Operation) String() string {
 	switch o {
-	case PortfolioValue:
+	case GetPortfolioValue:
 		return "Portfolio worth"
-	case AddAsset:
-		return "Add asset"
+	case AddAssetsPortfolio:
+		return "Add asset(s) to portfolio"
+	case ShowWatchList:
+		return "Show watch list"
+	case AddAssetsWatchList:
+		return "Add asset(s) to watch list"
+	case RemoveAssetsWatchList:
+		return "Remove asset(s) from watch list"
 	case Exit:
 		return "Exit"
 	default:
@@ -71,18 +80,16 @@ func main() {
 	}
 	defer assetDb.Close()
 
-	loopPrompt := "What would you like to do:\n[0]\tSee portfolio worth\n[1]\tAdd new asset to portfolio\n[2]\tExit portfolio dashboard"
-	var currentOperation Operation
 programLoop:
 	for {
-		currentOperation, err = readOperatonInput(loopPrompt)
+		currentOperation, err := readOperatonInput()
 		if err != nil {
 			fmt.Println("An error occurred: ", err)
 			continue
 		}
 
 		switch currentOperation {
-		case PortfolioValue:
+		case ShowWatchList:
 			assets, err := getAllAssets(assetDb)
 			if err != nil {
 				log.Fatal(err)
@@ -98,14 +105,35 @@ programLoop:
 			}
 
 			fmt.Println()
-		case AddAsset:
-			var newAssetId string
-			fmt.Println("Enter an assets (id): ")
-			fmt.Scanf("%s", &newAssetId)
+		case AddAssetsWatchList:
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Println("Enter an asset(s) (id): ")
+			assetsString, err := reader.ReadString('\n')
+			if err != nil {
+				fmt.Println("Could not read inputted assets")
+				continue programLoop
+			}
+			assetsString = strings.TrimSpace(assetsString)
 
-			err = addAsset(assetDb, newAssetId)
+			err = addAssets(assetDb, assetsString)
 			if err != nil {
 				log.Fatal("Adding new asset failed: ", err)
+			}
+
+			fmt.Println()
+		case RemoveAssetsWatchList:
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Println("Enter an asset(s) (id): ")
+			assetsString, err := reader.ReadString('\n')
+			if err != nil {
+				fmt.Println("Could not read inputted assets")
+				continue programLoop
+			}
+			assetsString = strings.TrimSpace(assetsString)
+
+			err = removeAssets(assetDb, assetsString)
+			if err != nil {
+				log.Fatal("Deleting asset(s) failed: ", err)
 			}
 
 			fmt.Println()
@@ -115,63 +143,6 @@ programLoop:
 			fmt.Println("Please enter a valid input")
 		}
 	}
-}
-
-func readOperatonInput(prompt string) (Operation, error) {
-	fmt.Println(prompt)
-
-	scanner := bufio.NewScanner(os.Stdin)
-	if !scanner.Scan() {
-		return Exit, fmt.Errorf("Invalid input provided.")
-	}
-
-	input := strings.TrimSpace(scanner.Text())
-	operation, err := strconv.Atoi(input)
-	if err != nil {
-		return Exit, fmt.Errorf("Input should be numeric")
-	}
-
-	return Operation(operation), nil
-}
-
-func getAssetData(id string) (AssetDetail, error) {
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest", nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	q := url.Values{}
-	q.Add("id", id)
-	q.Add("convert", "AUD")
-
-	ApiKey := os.Getenv("CMC_API_KEY")
-	req.Header.Set("Accepts", "application/json")
-	req.Header.Add("X-CMC_PRO_API_KEY", ApiKey)
-	req.URL.RawQuery = q.Encode()
-
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	var response ApiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		log.Fatal(err)
-	}
-
-	audQuote, ok := response.Data[id].Quote["AUD"]
-	if !ok {
-		return AssetDetail{}, fmt.Errorf("Error with quote.")
-	}
-
-	return AssetDetail{
-		Id:        response.Data[id].Id,
-		Symbol:    response.Data[id].Symbol,
-		Price:     audQuote.Price,
-		MarketCap: audQuote.MarketCap,
-	}, nil
 }
 
 func initAssetDB(path string) (*sql.DB, error) {
@@ -202,38 +173,134 @@ func initAssetDB(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-func addAsset(db *sql.DB, id string) error {
-	assetData, err := getAssetData(id)
+func readOperatonInput() (Operation, error) {
+	for i := Operation(0); i <= Exit; i++ {
+		fmt.Printf("[%d]  %s\n", i, i.String())
+	}
+
+	scanner := bufio.NewScanner(os.Stdin)
+	if !scanner.Scan() {
+		return Exit, fmt.Errorf("Invalid input provided.")
+	}
+
+	input := strings.TrimSpace(scanner.Text())
+	operation, err := strconv.Atoi(input)
+	if err != nil {
+		return Exit, fmt.Errorf("Input should be numeric")
+	}
+
+	return Operation(operation), nil
+}
+
+func addAssets(db *sql.DB, id string) error {
+	assetIds := strings.Fields(id)
+	assetData, err := getAssetData(assetIds, "AUD")
 	if err != nil {
 		return fmt.Errorf("Could not retrieve asset data: %s", err)
 	}
 
-	_, err = db.Exec(`INSERT INTO assets (id, symbol, price, market_cap) VALUES (?, ?, ?, ?)`,
-		assetData.Id,
-		assetData.Symbol,
-		assetData.Price,
-		assetData.MarketCap,
-	)
+	err = addAssetsToDb(db, assetData)
 	if err != nil {
-		return fmt.Errorf("Could not insert asset data into db: %s", err)
+		log.Fatal("Could not add assets to db: ", err)
 	}
 
 	return nil
 }
 
-func getAsset(db *sql.DB, id string) (AssetDetail, error) {
-	var asset AssetDetail
-
-	row := db.QueryRow(`SELECT id, symbol, price, market_cap FROM assets WHERE id = ?`, id)
-	err := row.Scan(&asset.Id, &asset.Symbol, &asset.Price, &asset.MarketCap)
+func getAssetData(ids []string, currency string) ([]AssetDetail, error) {
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest", nil)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return AssetDetail{}, fmt.Errorf("no asset found with ID %s", id)
-		}
-		return AssetDetail{}, fmt.Errorf("failed to query asset: %w", err)
+		log.Fatal(err)
 	}
 
-	return asset, nil
+	q := url.Values{}
+	q.Add("id", strings.Join(ids, ","))
+	q.Add("convert", "AUD")
+
+	ApiKey := os.Getenv("CMC_API_KEY")
+	req.Header.Set("Accepts", "application/json")
+	req.Header.Add("X-CMC_PRO_API_KEY", ApiKey)
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var response ApiResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		log.Fatal(err)
+	}
+
+	var result []AssetDetail
+	for _, priceResponse := range response.Data {
+		assetQuote, ok := priceResponse.Quote[currency]
+		if !ok {
+			fmt.Println("Failed to get asset.")
+		}
+
+		result = append(result, AssetDetail{Id: priceResponse.Id, Symbol: priceResponse.Symbol, Price: assetQuote.Price, MarketCap: assetQuote.MarketCap})
+	}
+
+	return result, nil
+}
+
+func addAssetsToDb(db *sql.DB, assetData []AssetDetail) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("Failed to start db transaction: %s", err)
+	}
+
+	stmt, err := tx.Prepare(`INSERT INTO assets (id, symbol, price, market_cap) VALUES (?, ?, ?, ?)`)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("Could not prepare transaction to add assets to db: %s", err)
+	}
+	defer stmt.Close()
+
+	for _, asset := range assetData {
+		_, err = stmt.Exec(
+			asset.Id,
+			asset.Symbol,
+			asset.Price,
+			asset.MarketCap,
+		)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("Could not insert asset data into db: %s", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("Could not commit transaction to db: %s", err)
+	}
+
+	return nil
+}
+
+func removeAssets(db *sql.DB, assets string) error {
+	assetIds := strings.Fields(assets)
+	if len(assetIds) == 0 {
+		return nil
+	}
+
+	idPlaceholders := strings.Repeat("?,", len(assetIds))
+	idPlaceholders = idPlaceholders[:len(idPlaceholders)-1]
+
+	stmtArgs := make([]any, len(assetIds))
+	for i, v := range assetIds {
+		stmtArgs[i] = v
+	}
+
+	stmt := fmt.Sprintf("DELETE FROM assets WHERE id IN (%s)", idPlaceholders)
+	_, err := db.Exec(stmt, stmtArgs...)
+	if err != nil {
+		return fmt.Errorf("Could not delete assets from db: %s", err)
+	}
+
+	return nil
 }
 
 func getAllAssets(db *sql.DB) ([]AssetDetail, error) {
