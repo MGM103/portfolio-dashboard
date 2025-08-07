@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -33,7 +34,7 @@ func (o Operation) String() string {
 	case GetPortfolioValue:
 		return "Portfolio worth"
 	case AddAssetsPortfolio:
-		return "Add asset(s) to portfolio"
+		return "Add position(s) to portfolio"
 	case ShowWatchList:
 		return "Show watch list"
 	case AddAssetsWatchList:
@@ -89,6 +90,21 @@ programLoop:
 		}
 
 		switch currentOperation {
+		case AddAssetsPortfolio:
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Println("Enter an asset(s) (id): ")
+			positionString, err := reader.ReadString('\n')
+			if err != nil {
+				fmt.Println("Could not read inputted assets")
+				continue programLoop
+			}
+			positionString = strings.TrimSpace(positionString)
+
+			err = addPosition(assetDb, positionString)
+			if err != nil {
+				fmt.Println("Could not add position: ", err)
+				continue programLoop
+			}
 		case ShowWatchList:
 			assets, err := getAllAssets(assetDb)
 			if err != nil {
@@ -157,17 +173,40 @@ func initAssetDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Ensure table exists
-	createTableStmt := `
+	asssetTableStmt := `
 	CREATE TABLE IF NOT EXISTS assets (
 		id INTEGER PRIMARY KEY,
 		symbol TEXT NOT NULL,
 		price REAL,
 		market_cap REAL
 	)`
-	if _, err := db.Exec(createTableStmt); err != nil {
+
+	positionsTableStmt := `
+	CREATE TABLE IF NOT EXISTS positions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		assetId INTEGER NOT NULL,
+		amount REAL NOT NULL,
+		UNIQUE(assetId)
+	)`
+
+	tableStmts := []string{asssetTableStmt, positionsTableStmt}
+	tx, err := db.Begin()
+	if err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to create table: %w", err)
+		return nil, fmt.Errorf("Failed to start transaction for table creation: %s", err)
+	}
+
+	for _, stmt := range tableStmts {
+		if _, err := tx.Exec(stmt); err != nil {
+			tx.Rollback()
+			db.Close()
+			return nil, fmt.Errorf("Could not create table: %s", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("Transaction failed to commit: %s", err)
 	}
 
 	return db, nil
@@ -327,3 +366,47 @@ func getAllAssets(db *sql.DB) ([]AssetDetail, error) {
 
 	return assets, nil
 }
+
+func addPosition(db *sql.DB, positionString string) error {
+	positionArgs := strings.Fields(positionString)
+	id := positionArgs[0]
+	amount, err := strconv.Atoi(positionArgs[1])
+	if err != nil {
+		return fmt.Errorf("Could not add position, invalid amount inputted: %s", err)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("Could not begin transaction to add position: %s", err)
+	}
+
+	_, err = tx.Exec(`INSERT INTO positions (assetId, amount) VALUES (?, ?)`, id, amount)
+	if err != nil {
+		return fmt.Errorf("Could not add position into db: %s", err)
+	}
+
+	var assetId string
+	err = tx.QueryRow(`SELECT id FROM assets WHERE id = ?`).Scan(&assetId)
+	if !errors.Is(err, sql.ErrNoRows) {
+		tx.Rollback()
+		db.Close()
+		return fmt.Errorf("Failed to query asset db: %s", err)
+	}
+	if err != nil {
+		err = addAssets(db, assetId)
+		if err != nil {
+			tx.Rollback()
+			db.Close()
+			return fmt.Errorf("Failed to add asset to db: %s", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		db.Close()
+		return fmt.Errorf("Failed to commit position to db: %s", err)
+	}
+
+	return nil
+}
+
+func ShowPortfolio(db *sql.DB) {}
