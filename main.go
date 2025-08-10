@@ -369,6 +369,9 @@ func getAllAssets(db *sql.DB) ([]AssetDetail, error) {
 
 func addPosition(db *sql.DB, positionString string) error {
 	positionArgs := strings.Fields(positionString)
+	if len(positionArgs) != 2 {
+		return fmt.Errorf("You did not supply the expected input (AssetID Amount)")
+	}
 	id := positionArgs[0]
 	amount, err := strconv.Atoi(positionArgs[1])
 	if err != nil {
