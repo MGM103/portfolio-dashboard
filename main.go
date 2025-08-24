@@ -22,7 +22,8 @@ type Operation int
 
 const (
 	GetPortfolioValue Operation = iota
-	AddAssetsPortfolio
+	AddPosition
+	RemovePosition
 	ShowWatchList
 	AddAssetsWatchList
 	RemoveAssetsWatchList
@@ -33,8 +34,10 @@ func (o Operation) String() string {
 	switch o {
 	case GetPortfolioValue:
 		return "Portfolio worth"
-	case AddAssetsPortfolio:
-		return "Add position(s) to portfolio"
+	case AddPosition:
+		return "Add position(s)"
+	case RemovePosition:
+		return "Remove position(s)"
 	case ShowWatchList:
 		return "Show watch list"
 	case AddAssetsWatchList:
@@ -90,7 +93,13 @@ programLoop:
 		}
 
 		switch currentOperation {
-		case AddAssetsPortfolio:
+		case GetPortfolioValue:
+			err = getPortfolioValue(assetDb)
+			if err != nil {
+				fmt.Println("Could not print portfolio value")
+			}
+			fmt.Println()
+		case AddPosition:
 			reader := bufio.NewReader(os.Stdin)
 			fmt.Println("Enter an asset(s) (id): ")
 			positionString, err := reader.ReadString('\n')
@@ -103,6 +112,21 @@ programLoop:
 			err = addPosition(assetDb, positionString)
 			if err != nil {
 				fmt.Println("Could not add position: ", err)
+				continue programLoop
+			}
+		case RemovePosition:
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Println("Enter an asset(s) (id): ")
+			positionString, err := reader.ReadString('\n')
+			if err != nil {
+				fmt.Println("Could not read inputted assets to remove")
+				continue programLoop
+			}
+			positionString = strings.TrimSpace(positionString)
+
+			err = removePosition(assetDb, positionString)
+			if err != nil {
+				fmt.Println("Could not remove position: ", err)
 				continue programLoop
 			}
 		case ShowWatchList:
@@ -367,6 +391,55 @@ func getAllAssets(db *sql.DB) ([]AssetDetail, error) {
 	return assets, nil
 }
 
+func getPortfolioValue(db *sql.DB) error {
+	type position struct {
+		assetId int
+		symbol  string
+		amount  float64
+		price   float64
+		mktCap  float64
+	}
+
+	positions := make([]position, 0)
+	assetIds := make([]string, 0)
+	rows, err := db.Query(`SELECT assetId, amount FROM positions`)
+	if err != nil {
+		return fmt.Errorf("failed to query assets: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var portfolioPosition position
+		if err := rows.Scan(&portfolioPosition.assetId, &portfolioPosition.amount); err != nil {
+			return fmt.Errorf("Failed to read position in query: %w", err)
+		}
+		assetIds = append(assetIds, strconv.Itoa(portfolioPosition.assetId))
+		positions = append(positions, portfolioPosition)
+	}
+
+	assetPriceData, err := getAssetData(assetIds, "AUD")
+	if err != nil {
+		return fmt.Errorf("Could not get price data for portfolio positions: %w", err)
+	}
+
+	assetIdToPriceData := make(map[int]AssetDetail, 0)
+	for _, priceInfo := range assetPriceData {
+		assetIdToPriceData[priceInfo.Id] = priceInfo
+	}
+
+	var portfolioValue float64
+	fmt.Println("Asset  Amount  Price MktCap Size")
+	for _, pos := range positions {
+		priceData := assetIdToPriceData[pos.assetId]
+		pos.mktCap, pos.price, pos.symbol = priceData.MarketCap, priceData.Price, priceData.Symbol
+		fmt.Printf("%s %f %f %f %f", pos.symbol, pos.amount, pos.price, pos.mktCap, pos.amount*pos.price)
+		portfolioValue += pos.amount * pos.price
+	}
+	fmt.Println("\nTotal value: ", portfolioValue)
+
+	return nil
+}
+
 func addPosition(db *sql.DB, positionString string) error {
 	positionArgs := strings.Fields(positionString)
 	if len(positionArgs) != 2 {
@@ -380,7 +453,7 @@ func addPosition(db *sql.DB, positionString string) error {
 
 	tx, err := db.Begin()
 	if err != nil {
-		return fmt.Errorf("Could not begin transaction to add position: %s", err)
+		return fmt.Errorf("could not begin transaction to add position: %s", err)
 	}
 
 	_, err = tx.Exec(`INSERT INTO positions (assetId, amount) VALUES (?, ?)`, id, amount)
@@ -389,17 +462,15 @@ func addPosition(db *sql.DB, positionString string) error {
 	}
 
 	var assetId string
-	err = tx.QueryRow(`SELECT id FROM assets WHERE id = ?`).Scan(&assetId)
-	if !errors.Is(err, sql.ErrNoRows) {
+	err = tx.QueryRow(`SELECT id FROM assets WHERE id = ?`, id).Scan(&assetId)
+	if errors.Is(err, sql.ErrNoRows) {
 		tx.Rollback()
-		db.Close()
 		return fmt.Errorf("Failed to query asset db: %s", err)
 	}
 	if err != nil {
 		err = addAssets(db, assetId)
 		if err != nil {
 			tx.Rollback()
-			db.Close()
 			return fmt.Errorf("Failed to add asset to db: %s", err)
 		}
 	}
@@ -412,4 +483,30 @@ func addPosition(db *sql.DB, positionString string) error {
 	return nil
 }
 
-func ShowPortfolio(db *sql.DB) {}
+func removePosition(db *sql.DB, positionString string) error {
+	positionArgs := strings.Fields(positionString)
+	if len(positionArgs) != 1 {
+		return fmt.Errorf("Must supply only one id of the position asset to remove")
+	}
+
+	id, err := strconv.Atoi(positionArgs[0])
+	if err != nil {
+		return fmt.Errorf("Could not convert id string into integer: %s", err)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("could not begin transaction to add position: %s", err)
+	}
+
+	_, err = tx.Exec(`DELETE FROM positions WHERE assetId=?`, id)
+	if err != nil {
+		return fmt.Errorf("Could not delete position from db: %s", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("Failed to execute delete transaction on positions: %s", err)
+	}
+
+	return nil
+}
