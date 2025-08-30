@@ -4,11 +4,15 @@ import (
 	"log"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/mgm103/portfolio-dashboard/internal/tui"
+	data "github.com/mgm103/portfolio-dashboard/data"
+	"github.com/mgm103/portfolio-dashboard/tui"
 )
 
 func main() {
-	p := tea.NewProgram(tui.NewModel())
+	store := &data.Store{}
+	m := tui.NewModel(store)
+
+	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}

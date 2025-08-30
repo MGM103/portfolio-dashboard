@@ -1,9 +1,12 @@
 package tui
 
 import (
+	"log"
+
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	data "github.com/mgm103/portfolio-dashboard/data"
 )
 
 const (
@@ -17,17 +20,23 @@ const (
 )
 
 type model struct {
-	// store *Store
+	store  *data.Store
 	list   list.Model
 	state  uint
 	table  table.Model
 	inputs inputFields
 }
 
-func NewModel() model {
+func NewModel(store *data.Store) model {
+	err := store.Init()
+	if err != nil {
+		log.Fatalf("Failed to set up db: %s", err)
+	}
+
 	return model{
 		list:  NewList(),
 		state: menu,
+		store: store,
 		table: table.New(),
 	}
 }
