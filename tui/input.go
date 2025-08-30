@@ -43,10 +43,10 @@ func (i inputFields) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s := msg.String()
 
 		switch s {
-		case "tab", "right", "down":
+		case "tab", "down":
 			i.focusIndex++
 
-		case "shift+tab", "left", "up":
+		case "shift+tab", "up":
 			i.focusIndex--
 		}
 
@@ -96,4 +96,13 @@ func (i inputFields) View() string {
 	b.WriteString("\n\nPress <enter> to submit")
 
 	return b.String()
+}
+
+func (i inputFields) GetValues() []string {
+	values := make([]string, len(i.inputs))
+	for index, input := range i.inputs {
+		values[index] = input.Value()
+	}
+
+	return values
 }

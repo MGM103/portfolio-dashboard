@@ -51,17 +51,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd  tea.Cmd
 	)
 
-	m.table, cmd = m.table.Update(msg)
-	cmds = append(cmds, cmd)
+	switch m.state {
+	case menu:
+		m.list, cmd = m.list.Update(msg)
+		cmds = append(cmds, cmd)
+	case portfolio, watchlist:
+		m.table, cmd = m.table.Update(msg)
+		cmds = append(cmds, cmd)
+	case addAsset, addPosition, removeAsset, removePosition:
+		tempModel, cmd := m.inputs.Update(msg)
+		m.inputs = tempModel.(inputFields)
+		cmds = append(cmds, cmd)
+
+	}
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		key := msg.String()
 		switch m.state {
 		case menu:
-			m.list, cmd = m.list.Update(msg)
-			cmds = append(cmds, cmd)
-
 			switch key {
 			case "enter":
 				if item, ok := m.list.SelectedItem().(menuItem); ok {
@@ -98,10 +106,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case addAsset:
-			tempModel, cmd := m.inputs.Update(msg)
-			m.inputs = tempModel.(inputFields)
-			cmds = append(cmds, cmd)
-
 			switch key {
 			case "esc":
 				m.state = menu
@@ -114,9 +118,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case addPosition:
-			tempModel, cmd := m.inputs.Update(msg)
-			m.inputs = tempModel.(inputFields)
-			cmds = append(cmds, cmd)
 
 			switch key {
 			case "esc":
@@ -130,10 +131,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case removeAsset:
-			tempModel, cmd := m.inputs.Update(msg)
-			m.inputs = tempModel.(inputFields)
-			cmds = append(cmds, cmd)
-
 			switch key {
 			case "esc":
 				m.state = menu
@@ -146,10 +143,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case removePosition:
-			tempModel, cmd := m.inputs.Update(msg)
-			m.inputs = tempModel.(inputFields)
-			cmds = append(cmds, cmd)
-
 			switch key {
 			case "esc":
 				m.state = menu
