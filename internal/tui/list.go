@@ -13,6 +13,7 @@ type menuItem struct {
 func (i menuItem) Title() string       { return i.title }
 func (i menuItem) Description() string { return i.desc }
 func (i menuItem) FilterValue() string { return i.title }
+func (i menuItem) TargetPage() uint    { return i.targetPage }
 func (i menuItem) Action(m *model) {
 	m.state = i.targetPage
 }
