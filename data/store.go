@@ -14,27 +14,27 @@ type Asset struct {
 }
 
 type Store struct {
-	conn *sql.DB
+	Conn *sql.DB
 }
 
 func (s *Store) Init() error {
 	dbPath := "./data/asset.db"
 	var err error
-	s.conn, err = sql.Open("sqlite3", dbPath)
+	s.Conn, err = sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to open database at %s: %w", dbPath, err)
 	}
 
-	if err := s.createTables(); err != nil {
-		s.conn.Close()
+	if err := s.CreateTables(); err != nil {
+		s.Conn.Close()
 		return fmt.Errorf("failed to create tables: %w", err)
 	}
 
 	return nil
 }
 
-func (s *Store) createTables() error {
-	tx, err := s.conn.Begin()
+func (s *Store) CreateTables() error {
+	tx, err := s.Conn.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -60,7 +60,7 @@ func (s *Store) createTables() error {
 }
 
 func (s *Store) GetWatchlist() ([]Asset, error) {
-	rows, err := s.conn.Query(`SELECT id, ticker FROM watchlist`)
+	rows, err := s.Conn.Query(`SELECT id, ticker FROM watchlist`)
 	if err != nil {
 		return nil, fmt.Errorf("Watchlist query failed: %w", err)
 	}
@@ -77,7 +77,7 @@ func (s *Store) GetWatchlist() ([]Asset, error) {
 }
 
 func (s *Store) GetPositions() ([]Asset, error) {
-	rows, err := s.conn.Query(`SELECT * FROM positions`)
+	rows, err := s.Conn.Query(`SELECT * FROM positions`)
 	if err != nil {
 		return nil, fmt.Errorf("Positions query failed: %w", err)
 	}
@@ -94,7 +94,7 @@ func (s *Store) GetPositions() ([]Asset, error) {
 }
 
 func (s *Store) SaveToWatchlist(assets []Asset) error {
-	tx, err := s.conn.Begin()
+	tx, err := s.Conn.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -113,7 +113,7 @@ func (s *Store) SaveToWatchlist(assets []Asset) error {
 	defer stmt.Close()
 
 	for _, asset := range assets {
-		_, err := stmt.Exec(upsertQuery, asset.ID, asset.Ticker)
+		_, err := stmt.Exec(asset.ID, asset.Ticker)
 		if err != nil {
 			return fmt.Errorf("Failed to add <%s> to db: %w", asset.ID, err)
 		}
@@ -129,7 +129,7 @@ func (s *Store) SaveToPositions(asset Asset) error {
 	SET ticker=excluded.ticker, amount=excluded.amount
 	`
 
-	_, err := s.conn.Exec(upsertQuery, asset.ID, asset.Ticker, asset.Amount)
+	_, err := s.Conn.Exec(upsertQuery, asset.ID, asset.Ticker, asset.Amount)
 	if err != nil {
 		return fmt.Errorf("Failed to add or update position: %w", err)
 	}

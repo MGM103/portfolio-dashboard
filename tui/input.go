@@ -8,8 +8,9 @@ import (
 )
 
 type inputFields struct {
-	focusIndex int
-	inputs     []textinput.Model
+	description string
+	focusIndex  int
+	inputs      []textinput.Model
 }
 
 func NewInputFields(numFields int, placeholders []string) inputFields {
@@ -85,6 +86,9 @@ func (i *inputFields) updateInputs(msg tea.Msg) tea.Cmd {
 
 func (i inputFields) View() string {
 	var b strings.Builder
+
+	b.WriteString(i.description)
+	b.WriteRune('\n')
 
 	for index := range i.inputs {
 		b.WriteString(i.inputs[index].View())

@@ -2,10 +2,13 @@ package tui
 
 import (
 	"log"
+	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/mgm103/portfolio-dashboard/api"
 	data "github.com/mgm103/portfolio-dashboard/data"
 )
 
@@ -20,11 +23,12 @@ const (
 )
 
 type model struct {
-	store  *data.Store
-	list   list.Model
-	state  uint
-	table  table.Model
-	inputs inputFields
+	inputs       inputFields
+	list         list.Model
+	notification string
+	state        uint
+	store        *data.Store
+	table        table.Model
 }
 
 func NewModel(store *data.Store) model {
@@ -77,7 +81,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					case addPosition:
 						m.inputs = NewInputFields(2, []string{"Asset id...", "Position amount..."})
 
-					case addAsset, removeAsset, removePosition:
+					case addAsset:
+						m.inputs = NewInputFields(1, []string{"Asset id..."})
+
+					case removeAsset:
+						assets, _ := m.store.GetWatchlist()
+
+						watchlistTickers := ""
+						for _, asset := range assets {
+							watchlistTickers += asset.Ticker
+							watchlistTickers += "/n"
+						}
+
+						m.inputs = NewInputFields(1, []string{"Asset id..."})
+						m.inputs.description += "Current watchlist: " + watchlistTickers
+
+					case removePosition:
 						m.inputs = NewInputFields(1, []string{"Asset id..."})
 
 					}
@@ -111,6 +130,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = menu
 
 			case "enter":
+				inputValues := m.inputs.GetValues()
+				assetIds := strings.Fields(inputValues[0])
+				assetData, _ := api.GetAssetData(assetIds, "AUD")
+
+				var assetTickers []string
+				var assets []data.Asset
+				for _, asset := range assetData {
+					assetTickers = append(assetTickers, asset.Ticker)
+					assets = append(assets, data.Asset{ID: strconv.Itoa(asset.Id), Ticker: asset.Ticker})
+				}
+
+				m.store.SaveToWatchlist(assets)
+
+				m.notification = "The following were added to the watchlist:\n" + strings.Join(assetTickers, "\n")
 				m.state = menu
 
 			case "ctrl+c":
@@ -165,6 +198,7 @@ func (m model) View() string {
 
 	switch m.state {
 	case menu:
+		s += m.notification
 		s += m.list.View()
 		s += "\n\n"
 
