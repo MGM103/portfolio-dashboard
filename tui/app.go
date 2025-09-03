@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -90,11 +91,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						watchlistTickers := ""
 						for _, asset := range assets {
 							watchlistTickers += asset.Ticker
-							watchlistTickers += "/n"
+							watchlistTickers += "\n"
 						}
 
 						m.inputs = NewInputFields(1, []string{"Asset id..."})
-						m.inputs.description += "Current watchlist: " + watchlistTickers
+						m.inputs.description += "Current watchlist:\n" + watchlistTickers
 
 					case removePosition:
 						m.inputs = NewInputFields(1, []string{"Asset id..."})
@@ -169,6 +170,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = menu
 
 			case "enter":
+				inputValues := m.inputs.GetValues()
+				assetIds := strings.Fields(inputValues[0])
+				watchlist, _ := m.store.GetWatchlist()
+
+				idToTicker := make(map[string]string, len(watchlist))
+				for _, asset := range watchlist {
+					idToTicker[asset.ID] = asset.Ticker
+				}
+
+				var removedAssets []string
+				for _, id := range assetIds {
+					removedAssets = append(removedAssets, idToTicker[id])
+				}
+
+				m.notification = "The following were removed from the watchlist:\n" + strings.Join(removedAssets, "\n")
+				err := m.store.RemoveFromWatchlist(assetIds)
+				if err != nil {
+					m.notification = fmt.Sprintf("Failed to remove assets from watchlist: %s", err)
+				}
+
 				m.state = menu
 
 			case "ctrl+c":

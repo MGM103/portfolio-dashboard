@@ -133,3 +133,36 @@ func TestSaveToPositions_Upsert(t *testing.T) {
 		t.Errorf("expected amount 5, got %d", positions[0].Amount)
 	}
 }
+
+func TestDeleteFromWatchlistByIDs(t *testing.T) {
+	store := setupTestStore(t)
+
+	assets := []data.Asset{
+		{ID: "1", Ticker: "BTC"},
+		{ID: "2", Ticker: "ETH"},
+		{ID: "3", Ticker: "XRP"},
+	}
+	if err := store.SaveToWatchlist(assets); err != nil {
+		t.Fatalf("SaveToWatchlist failed: %v", err)
+	}
+
+	// Delete 2 of the 3 assets
+	toDelete := []string{"1", "3"}
+	if err := store.RemoveFromWatchlist(toDelete); err != nil {
+		t.Fatalf("DeleteFromWatchlistByIDs failed: %v", err)
+	}
+
+	// Fetch remaining items
+	remaining, err := store.GetWatchlist()
+	if err != nil {
+		t.Fatalf("GetWatchlist failed: %v", err)
+	}
+
+	// Expect only the ETH asset to remain
+	if len(remaining) != 1 {
+		t.Fatalf("expected 1 asset after delete, got %d", len(remaining))
+	}
+	if remaining[0].ID != "2" || remaining[0].Ticker != "ETH" {
+		t.Errorf("unexpected remaining asset: %+v", remaining[0])
+	}
+}

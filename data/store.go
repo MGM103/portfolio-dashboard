@@ -3,6 +3,7 @@ package data
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3" // Recommended to place import on its own line
 )
@@ -132,6 +133,30 @@ func (s *Store) SaveToPositions(asset Asset) error {
 	_, err := s.Conn.Exec(upsertQuery, asset.ID, asset.Ticker, asset.Amount)
 	if err != nil {
 		return fmt.Errorf("Failed to add or update position: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Store) RemoveFromWatchlist(assetIds []string) error {
+	if len(assetIds) == 0 {
+		return nil
+	}
+
+	placeholders := make([]string, len(assetIds))
+	for i := range len(placeholders) {
+		placeholders[i] = "?"
+	}
+
+	deleteQuery := fmt.Sprintf(`DELETE FROM watchlist WHERE id IN (%s)`, strings.Join(placeholders, ","))
+	args := make([]any, len(assetIds))
+	for i, id := range assetIds {
+		args[i] = id
+	}
+
+	_, err := s.Conn.Exec(deleteQuery, args...)
+	if err != nil {
+		return fmt.Errorf("Failed to execute delete query in db: %w", err)
 	}
 
 	return nil
