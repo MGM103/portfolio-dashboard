@@ -98,8 +98,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.inputs.description += "Current watchlist:\n" + watchlistTickers
 
 					case removePosition:
-						m.inputs = NewInputFields(1, []string{"Asset id..."})
+						positions, _ := m.store.GetPositions()
 
+						positionDesc := ""
+						for _, p := range positions {
+							positionDesc += fmt.Sprintf("%s\t%d\n", p.Ticker, p.Amount)
+						}
+
+						m.inputs = NewInputFields(1, []string{"Asset id..."})
+						m.inputs.description = positionDesc
 					}
 
 					item.Action(&m)
@@ -152,12 +159,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case addPosition:
-
 			switch key {
 			case "esc":
 				m.state = menu
 
 			case "enter":
+				inputValues := m.inputs.GetValues()
+				assetIdField := strings.Fields(inputValues[0])
+				assetAmountField := strings.Fields(inputValues[1])
+				assetData, _ := api.GetAssetData(assetIdField, "AUD")
+				assetTicker := assetData[0].Ticker
+
+				if len(assetIdField) != 1 || len(assetAmountField) != 1 {
+					m.inputs.description = "Please enter a single asset id and an amount.\n"
+					m.inputs.ClearValues()
+					break
+				}
+
+				positionAmount, _ := strconv.ParseUint(assetAmountField[0], 10, 64)
+				positionDetails := data.Asset{ID: assetIdField[0], Ticker: assetTicker, Amount: positionAmount}
+
+				m.store.SaveToPositions(positionDetails)
+
+				m.notification = fmt.Sprintf("Position added: %s\t%d\n", positionDetails.Ticker, positionAmount)
 				m.state = menu
 
 			case "ctrl+c":

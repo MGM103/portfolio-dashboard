@@ -110,3 +110,9 @@ func (i inputFields) GetValues() []string {
 
 	return values
 }
+
+func (i *inputFields) ClearValues() {
+	for index := range i.inputs {
+		i.inputs[index].SetValue("")
+	}
+}
