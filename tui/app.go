@@ -77,6 +77,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case menu:
 			switch key {
 			case "enter":
+				m.notification = ""
 				if item, ok := m.list.SelectedItem().(menuItem); ok {
 					switch item.TargetPage() {
 					case addPosition:
@@ -88,21 +89,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					case removeAsset:
 						assets, _ := m.store.GetWatchlist()
 
-						watchlistTickers := ""
-						for _, asset := range assets {
-							watchlistTickers += asset.Ticker
-							watchlistTickers += "\n"
+						watchlistDesc := ""
+						for _, a := range assets {
+							watchlistDesc += fmt.Sprintf("%s(%s)\n", a.Ticker, a.ID)
 						}
 
 						m.inputs = NewInputFields(1, []string{"Asset id..."})
-						m.inputs.description += "Current watchlist:\n" + watchlistTickers
+						m.inputs.description += watchlistDesc
 
 					case removePosition:
 						positions, _ := m.store.GetPositions()
 
 						positionDesc := ""
 						for _, p := range positions {
-							positionDesc += fmt.Sprintf("%s\t%d\n", p.Ticker, p.Amount)
+							positionDesc += fmt.Sprintf("%s(%s)  %d\n", p.Ticker, p.ID, p.Amount)
 						}
 
 						m.inputs = NewInputFields(1, []string{"Asset id..."})
@@ -226,6 +226,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = menu
 
 			case "enter":
+				inputValues := m.inputs.GetValues()
+				assetIds := strings.Fields(inputValues[0])
+				positions, _ := m.store.GetPositions()
+
+				idToTicker := make(map[string]string, len(positions))
+				for _, asset := range positions {
+					idToTicker[asset.ID] = asset.Ticker
+				}
+
+				var removedPositions []string
+				for _, id := range assetIds {
+					removedPositions = append(removedPositions, idToTicker[id])
+				}
+
+				err := m.store.RemoveFromPositions(assetIds)
+				if err != nil {
+					m.notification = fmt.Sprintf("Failed to remove assets from positions: %s", err)
+				}
+
+				m.notification = "The following were removed from the watchlist:\n" + strings.Join(removedPositions, "\n")
 				m.state = menu
 
 			case "ctrl+c":

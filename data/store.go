@@ -161,3 +161,27 @@ func (s *Store) RemoveFromWatchlist(assetIds []string) error {
 
 	return nil
 }
+
+func (s *Store) RemoveFromPositions(assetIds []string) error {
+	if len(assetIds) == 0 {
+		return nil
+	}
+
+	placeholders := make([]string, len(assetIds))
+	for i := range len(placeholders) {
+		placeholders[i] = "?"
+	}
+
+	deleteQuery := fmt.Sprintf(`DELETE FROM positions WHERE id IN (%s)`, strings.Join(placeholders, ","))
+	args := make([]any, len(assetIds))
+	for i, id := range assetIds {
+		args[i] = id
+	}
+
+	_, err := s.Conn.Exec(deleteQuery, args...)
+	if err != nil {
+		return fmt.Errorf("Failed to execute delete query in db: %w", err)
+	}
+
+	return nil
+}
