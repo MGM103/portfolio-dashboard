@@ -29,7 +29,7 @@ type model struct {
 	notification string
 	state        uint
 	store        *data.Store
-	table        table.Model
+	table        overview
 }
 
 func NewModel(store *data.Store) model {
@@ -42,7 +42,6 @@ func NewModel(store *data.Store) model {
 		list:  NewList(),
 		state: menu,
 		store: store,
-		table: table.New(),
 	}
 }
 
@@ -61,7 +60,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list, cmd = m.list.Update(msg)
 		cmds = append(cmds, cmd)
 	case portfolio, watchlist:
-		m.table, cmd = m.table.Update(msg)
+		tempModel, cmd := m.table.Update(msg)
+		m.table = tempModel.(overview)
 		cmds = append(cmds, cmd)
 	case addAsset, addPosition, removeAsset, removePosition:
 		tempModel, cmd := m.inputs.Update(msg)
@@ -80,6 +80,57 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.notification = ""
 				if item, ok := m.list.SelectedItem().(menuItem); ok {
 					switch item.TargetPage() {
+					case portfolio:
+						colHeaders := []table.Column{
+							{Title: "Asset", Width: 10},
+							{Title: "ID", Width: 10},
+							{Title: "Amount", Width: 10},
+							{Title: "Price", Width: 10},
+							{Title: "Value", Width: 10},
+						}
+
+						positions, _ := m.store.GetPositions()
+
+						var assetIds []string
+						for _, p := range positions {
+							assetIds = append(assetIds, p.ID)
+						}
+
+						assetDetails, _ := api.GetAssetData(assetIds, "AUD")
+
+						idToPice := make(map[string]float64, len(positions))
+						for _, d := range assetDetails {
+							id := strconv.Itoa(d.Id)
+							idToPice[id] = d.Price
+						}
+
+						var rows []table.Row
+						var portfolioValue float64
+						for _, p := range positions {
+							posAmt := float64(p.Amount)
+							price := idToPice[p.ID]
+							value := idToPice[p.ID] * posAmt
+							rows = append(rows, table.Row{p.Ticker, p.ID, strconv.FormatUint(p.Amount, 10), fmt.Sprintf("%.2f", price), fmt.Sprintf("%.2f", value)})
+							portfolioValue += idToPice[p.ID] * posAmt
+						}
+
+						m.table = NewOverview(colHeaders, rows, tableContent{footer: fmt.Sprintf("Portfolio value: %f", portfolioValue)})
+
+					case watchlist:
+						colHeaders := []table.Column{
+							{Title: "Asset", Width: 10},
+							{Title: "ID", Width: 10},
+						}
+
+						assets, _ := m.store.GetWatchlist()
+
+						var rows []table.Row
+						for _, a := range assets {
+							rows = append(rows, table.Row{a.Ticker, a.ID})
+						}
+
+						m.table = NewOverview(colHeaders, rows, tableContent{})
+
 					case addPosition:
 						m.inputs = NewInputFields(2, []string{"Asset id...", "Position amount..."})
 
