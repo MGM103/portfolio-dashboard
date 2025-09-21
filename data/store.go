@@ -11,7 +11,7 @@ import (
 type Asset struct {
 	ID     string
 	Ticker string
-	Amount uint64
+	Amount float64
 }
 
 type Store struct {

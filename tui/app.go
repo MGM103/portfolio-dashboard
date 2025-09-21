@@ -107,11 +107,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						var rows []table.Row
 						var portfolioValue float64
 						for _, p := range positions {
-							posAmt := float64(p.Amount)
 							price := idToPice[p.ID]
-							value := idToPice[p.ID] * posAmt
-							rows = append(rows, table.Row{p.Ticker, p.ID, strconv.FormatUint(p.Amount, 10), fmt.Sprintf("%.2f", price), fmt.Sprintf("%.2f", value)})
-							portfolioValue += idToPice[p.ID] * posAmt
+							value := idToPice[p.ID] * p.Amount
+							rows = append(rows, table.Row{p.Ticker, p.ID, fmt.Sprintf("%.4f", p.Amount), fmt.Sprintf("%.2f", price), fmt.Sprintf("%.2f", value)})
+							portfolioValue += idToPice[p.ID] * p.Amount
 						}
 
 						m.table = NewOverview(colHeaders, rows, tableContent{footer: fmt.Sprintf("Portfolio value: %f", portfolioValue)})
@@ -153,7 +152,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 						positionDesc := ""
 						for _, p := range positions {
-							positionDesc += fmt.Sprintf("%s(%s)  %d\n", p.Ticker, p.ID, p.Amount)
+							positionDesc += fmt.Sprintf("%s(%s)  %f\n", p.Ticker, p.ID, p.Amount)
 						}
 
 						m.inputs = NewInputFields(1, []string{"Asset id..."})
@@ -227,12 +226,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					break
 				}
 
-				positionAmount, _ := strconv.ParseUint(assetAmountField[0], 10, 64)
+				positionAmount, _ := strconv.ParseFloat(assetAmountField[0], 64)
 				positionDetails := data.Asset{ID: assetIdField[0], Ticker: assetTicker, Amount: positionAmount}
 
 				m.store.SaveToPositions(positionDetails)
 
-				m.notification = fmt.Sprintf("Position added: %s\t%d\n", positionDetails.Ticker, positionAmount)
+				m.notification = fmt.Sprintf("Position added: %s\t%f\n", positionDetails.Ticker, positionAmount)
 				m.state = menu
 
 			case "ctrl+c":
