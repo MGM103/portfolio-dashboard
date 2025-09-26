@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+if command -v wezterm &> /dev/null; then
+	uwsm app -- wezterm -e portfolio-dashboard
+else
+	gnome-terminal -- portfolio-dashboard
+fi
