@@ -7,13 +7,10 @@ MAIN_FILE := ./cmd/portfolio-dashboard/main.go
 INSTALL_DIR := $(HOME)/.local/bin
 CONFIG_DIR := $(HOME)/.config/portfolio-dashboard
 
-run:
-	@mkdir -p bin
-	@go build -o $(BINARY_PATH) $(MAIN_FILE)
+run: build
 	@$(BINARY_PATH)
 
 build:
-	@echo "Building $(BINARY_NAME) executable in: $(OUTPUT_DIR)"
 	@mkdir -p bin
 	@go build -o $(BINARY_PATH) $(MAIN_FILE)
 

@@ -12,19 +12,18 @@ Currently the data for digital asset pricing is sourced from [Coin Market Cap](h
 
 ## Table of contents
 
-- [Portfolio Dashboard 📊](#portfolio-dashboard-TUI📊)
+- [Portfolio Dashboard 📊](#portfolio-dashboard-TUI-📊)
   - [Description](#description)
   - [Table of contents](#table-of-contents)
   - [Getting Started](#getting-started)
     - [Requirements](#requirements)
     - [Quickstart](#quickstart)
   - [Usage](#usage)
-    - [Deploying locally](#deploying-locally)
-    - [Deploying on a testnet or mainnet](#deploying-on-a-testnet-or-mainnet)
+    - [Local Dev](#local-dev)
+    - [Installing on System](#installing-on-system)
   - [Testing](#testing)
     - [Unit tests](#unit-tests)
     - [Test Coverage](#test-coverage)
-  - [Additional Notes](#additional-notes)
   - [Acknowledgements](#acknowledgements)
 
 ## Getting Started
