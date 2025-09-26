@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -112,6 +113,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							rows = append(rows, table.Row{p.Ticker, p.ID, fmt.Sprintf("%.4f", p.Amount), fmt.Sprintf("%.2f", price), fmt.Sprintf("%.2f", value)})
 							portfolioValue += idToPice[p.ID] * p.Amount
 						}
+
+						sort.Slice(rows, func(i, j int) bool {
+							price1, _ := strconv.ParseFloat(rows[i][4], 64)
+							price2, _ := strconv.ParseFloat(rows[j][4], 64)
+
+							return price1 > price2
+						})
 
 						m.table = NewOverview(colHeaders, rows, tableContent{footer: fmt.Sprintf("Portfolio value: %f", portfolioValue)})
 
