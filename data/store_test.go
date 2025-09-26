@@ -130,7 +130,7 @@ func TestSaveToPositions_Upsert(t *testing.T) {
 		t.Fatalf("expected 1 position after upsert, got %d", len(positions))
 	}
 	if positions[0].Amount != 5 {
-		t.Errorf("expected amount 5, got %d", positions[0].Amount)
+		t.Errorf("expected amount 5, got %f", positions[0].Amount)
 	}
 }
 
