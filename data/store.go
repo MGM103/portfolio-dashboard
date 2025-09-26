@@ -3,6 +3,9 @@ package data
 import (
 	"database/sql"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3" // Recommended to place import on its own line
@@ -19,7 +22,8 @@ type Store struct {
 }
 
 func (s *Store) Init() error {
-	dbPath := "./data/asset.db"
+	dbPath := getDbPath()
+
 	var err error
 	s.Conn, err = sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -32,6 +36,21 @@ func (s *Store) Init() error {
 	}
 
 	return nil
+}
+
+func getDbPath() string {
+	devPath := "./data/asset.db"
+	if _, err := os.Stat(devPath); err == nil {
+		return devPath
+	}
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	configPath := filepath.Join(configDir, "portfolio-dashboard", "asset.db")
+	return configPath
 }
 
 func (s *Store) CreateTables() error {
