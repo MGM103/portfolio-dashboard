@@ -12,7 +12,7 @@ Currently the data for digital asset pricing is sourced from [Coin Market Cap](h
 
 ## Table of contents
 
-- [Portfolio Dashboard 📊](#portfolio-dashboard-tui)
+- [Portfolio Dashboard 📊](#portfolio-dashboard-tui-)
   - [Description](#description)
   - [Table of contents](#table-of-contents)
   - [Getting Started](#getting-started)
