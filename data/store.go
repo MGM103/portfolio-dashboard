@@ -22,7 +22,10 @@ type Store struct {
 }
 
 func (s *Store) Init() error {
-	dbPath := getDbPath()
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		return fmt.Errorf("DB_PATH not set. Please run application via portfolio-app script or set the target for dev in the .env file.")
+	}
 
 	var err error
 	s.Conn, err = sql.Open("sqlite3", dbPath)

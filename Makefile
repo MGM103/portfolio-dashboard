@@ -15,14 +15,23 @@ build:
 	@go build -o $(BINARY_PATH) $(MAIN_FILE)
 
 install: build
-	@echo "Deploying $(BINARY_NAME) and accompanying script to $(INSTALL_DIR)"
+	@echo "Deploying $(BINARY_NAME) and wrapper script to $(INSTALL_DIR)"
 	@mkdir -p $(INSTALL_DIR)
 	@cp $(BINARY_PATH) $(INSTALL_DIR)/$(BINARY_NAME)
 	@install -m 755 ./portfolio-app $(INSTALL_DIR)/portfolio-app
-	@echo "Updating dependencies"
 	@mkdir -p $(CONFIG_DIR)
-	@test -f $(CONFIG_DIR)/asset.db || cp ./data/asset.db $(CONFIG_DIR)/asset.db
-	@test -f $(CONFIG_DIR)/.env || cp .env $(CONFIG_DIR)/.env
+	@echo "Config dir created at location: $(CONFIG_DIR)"
+
+	@if [ ! -f $(CONFIG_DIR)/.env ]; then \
+		echo "Creating skeleton .env at $(CONFIG_DIR)/.env, please enter there values."; \
+		{ \
+			echo "CMC_API_KEY="; \
+			echo "DB_PATH="; \
+		} > $(CONFIG_DIR)/.env; \
+		chmod 600 $(CONFIG_DIR)/.env; \
+	else \
+		echo "$(CONFIG_DIR)/.env already exists, not overwriting."; \
+	fi
 
 clean:
 	@echo "Cleaning executables..."
