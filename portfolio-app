@@ -1,7 +1,91 @@
 #!/usr/bin/env bash
+set -eo pipefail
 
-if command -v wezterm &> /dev/null; then
-	uwsm app -- wezterm -e portfolio-dashboard
-else
-	gnome-terminal -- portfolio-dashboard
+APP_BIN="$HOME/.local/bin/portfolio-dashboard"
+CONFIG_DIR="$HOME/.config/portfolio-dashboard"
+ENCRYPTED_DB="$CONFIG_DIR/enc_assets.db"
+PLAINTEXT_DB="$CONFIG_DIR/assets.db"
+ENV_FILE="$CONFIG_DIR/.env"
+
+# ----- Ensure config dir exists -----
+mkdir -p "$CONFIG_DIR"
+
+# ----- Ensure .env exists -----
+if [[ ! -f "$ENV_FILE" ]]; then
+    echo "No .env file found."
+    echo "Creating example .env at $ENV_FILE"
+    {
+        echo "CMC_API_KEY="
+        echo "DB_PATH="
+    } > "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+
+    echo
+    echo "Please edit $ENV_FILE and add your API key before running the app again."
+    exit 1
 fi
+
+# ----- Decrypt if encrypted DB exists -----
+if [[ -f "$ENCRYPTED_DB" ]]; then
+    read -s -p "SQLCipher passphrase: " PASS
+    echo
+    echo "🔓 Decrypting encrypted database..."
+    sqlcipher "$ENCRYPTED_DB" <<SQL
+PRAGMA key = '$PASS';
+ATTACH DATABASE '$PLAINTEXT_DB' AS plaintext KEY '';
+SELECT sqlcipher_export('plaintext');
+DETACH DATABASE plaintext;
+.quit
+SQL
+    chmod 600 "$PLAINTEXT_DB"
+else
+    echo "No encrypted database found — running app with plaintext DB at:"
+    echo "  $PLAINTEXT_DB"
+fi
+
+# ----- Cleanup: encrypt DB after app exits -----
+cleanup() {
+    if [[ -f "$PLAINTEXT_DB" ]]; then
+        echo
+        echo "🔒 Re-encrypting database..."
+        read -s -p "SQLCipher passphrase: " ENCPASS
+        echo
+
+        ENC_TMP="$CONFIG_DIR/enc_assets_tmp.db"
+
+        cat <<SQL | sqlcipher "$PLAINTEXT_DB"
+ATTACH DATABASE '$ENC_TMP' AS encrypted KEY '$ENCPASS';
+SELECT sqlcipher_export('encrypted');
+DETACH DATABASE encrypted;
+.quit
+SQL
+
+        if [[ -f "$ENC_TMP" ]]; then
+            mv -f "$ENC_TMP" "$ENCRYPTED_DB"
+            chmod 600 "$ENCRYPTED_DB"
+            echo "✅ Encrypted DB updated at: $ENCRYPTED_DB"
+
+            # Securely remove the plaintext DB
+            if command -v shred &>/dev/null; then
+                shred -u -z "$PLAINTEXT_DB"
+                echo "🧹 Plaintext DB securely deleted."
+            else
+                rm -f "$PLAINTEXT_DB"
+                echo "🧹 Plaintext DB deleted (shred not available)."
+            fi
+        else
+            echo "❌ Encryption failed — plaintext DB was NOT deleted."
+        fi
+    fi
+}
+
+trap cleanup EXIT INT TERM
+
+# ----- Export environment -----
+set -a
+source "$ENV_FILE"
+set +a
+export DB_PATH="$PLAINTEXT_DB"
+
+# ----- Run the app -----
+"$APP_BIN"
