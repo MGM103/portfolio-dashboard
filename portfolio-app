@@ -4,11 +4,14 @@ set -eo pipefail
 APP_BIN="$HOME/.local/bin/portfolio-dashboard"
 CONFIG_DIR="$HOME/.config/portfolio-dashboard"
 ENCRYPTED_DB="$CONFIG_DIR/enc_assets.db"
-PLAINTEXT_DB="$CONFIG_DIR/assets.db"
 ENV_FILE="$CONFIG_DIR/.env"
 
 # ----- Ensure config dir exists -----
 mkdir -p "$CONFIG_DIR"
+
+# ----- Create a secure temp dir in memory (auto-cleared on reboot)
+TMP_DIR=$(mktemp -d /dev/shm/portfolio.XXXXXX)
+PLAINTEXT_DB="$TMP_DIR/assets.db"
 
 # ----- Ensure .env exists -----
 if [[ ! -f "$ENV_FILE" ]]; then

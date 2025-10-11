@@ -29,8 +29,6 @@ install: build
 			echo "DB_PATH="; \
 		} > $(CONFIG_DIR)/.env; \
 		chmod 600 $(CONFIG_DIR)/.env; \
-	else \
-		echo "$(CONFIG_DIR)/.env already exists, not overwriting."; \
 	fi
 
 clean:
