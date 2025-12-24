@@ -198,6 +198,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				m.state = menu
 
+			case "enter":
+				selectedRow := m.table.table.SelectedRow()
+				if len(selectedRow) > 0 {
+					assetId := selectedRow[1]
+					m.inputs = NewInputFields(2, []string{"Asset id...", "Position amount..."})
+					m.inputs.SetValues([]string{assetId, ""})
+					m.state = addPosition
+				}
+
 			case "ctrl+c":
 				return m, tea.Quit
 

@@ -92,7 +92,7 @@ func (i inputFields) View() string {
 
 	for index := range i.inputs {
 		b.WriteString(i.inputs[index].View())
-		if index < len(i.inputs) {
+		if index < len(i.inputs)-1 {
 			b.WriteRune('\n')
 		}
 	}
