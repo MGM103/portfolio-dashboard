@@ -23,7 +23,7 @@ install: build
 	@echo "Config dir created at location: $(CONFIG_DIR)"
 
 	@if [ ! -f $(CONFIG_DIR)/.env ]; then \
-		echo "Creating skeleton .env at $(CONFIG_DIR)/.env, please enter there values."; \
+		echo "Creating skeleton .env at $(CONFIG_DIR)/.env, please enter env var values."; \
 		{ \
 			echo "CMC_API_KEY="; \
 			echo "DB_PATH="; \

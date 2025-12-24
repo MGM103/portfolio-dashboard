@@ -116,3 +116,11 @@ func (i *inputFields) ClearValues() {
 		i.inputs[index].SetValue("")
 	}
 }
+
+func (i *inputFields) SetValues(values []string) {
+	for index, value := range values {
+		if index < len(i.inputs) {
+			i.inputs[index].SetValue(value)
+		}
+	}
+}

@@ -22,6 +22,7 @@ const (
 	removePosition
 	addAsset
 	removeAsset
+	updateAsset
 )
 
 type model struct {
@@ -64,7 +65,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		tempModel, cmd := m.table.Update(msg)
 		m.table = tempModel.(overview)
 		cmds = append(cmds, cmd)
-	case addAsset, addPosition, removeAsset, removePosition:
+	case addAsset, addPosition, removeAsset, removePosition, updateAsset:
 		tempModel, cmd := m.inputs.Update(msg)
 		m.inputs = tempModel.(inputFields)
 		cmds = append(cmds, cmd)
@@ -122,6 +123,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						})
 
 						m.table = NewOverview(colHeaders, rows, tableContent{footer: fmt.Sprintf("Portfolio value: %f", portfolioValue)})
+						m.table.Focus()
 
 					case watchlist:
 						colHeaders := []table.Column{
@@ -137,6 +139,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 
 						m.table = NewOverview(colHeaders, rows, tableContent{})
+						m.table.Focus()
 
 					case addPosition:
 						m.inputs = NewInputFields(2, []string{"Asset id...", "Position amount..."})
@@ -175,6 +178,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch key {
 			case "esc":
 				m.state = menu
+
+			case "enter":
+				selectedRow := m.table.table.SelectedRow()
+				if len(selectedRow) > 0 {
+					assetId := selectedRow[1]
+					amount := selectedRow[2]
+					m.inputs = NewInputFields(2, []string{"Asset id...", "Position amount..."})
+					m.inputs.SetValues([]string{assetId, amount})
+					m.state = updateAsset
+				}
 
 			case "ctrl+c":
 				return m, tea.Quit
@@ -310,6 +323,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 
+		case updateAsset:
+			switch key {
+			case "esc":
+				m.state = menu
+
+			case "enter":
+				inputValues := m.inputs.GetValues()
+				assetIdField := strings.Fields(inputValues[0])
+				assetAmountField := strings.Fields(inputValues[1])
+				assetData, _ := api.GetAssetData(assetIdField, "AUD")
+				assetTicker := assetData[0].Ticker
+
+				if len(assetIdField) != 1 || len(assetAmountField) != 1 {
+					m.inputs.description = "Please enter a single asset id and an amount.\n"
+					m.inputs.ClearValues()
+					break
+				}
+
+				positionAmount, _ := strconv.ParseFloat(assetAmountField[0], 64)
+				positionDetails := data.Asset{ID: assetIdField[0], Ticker: assetTicker, Amount: positionAmount}
+
+				m.store.SaveToPositions(positionDetails)
+
+				m.notification = fmt.Sprintf("Position updated: %s\t%f\n", positionDetails.Ticker, positionAmount)
+				m.state = menu
+
+			case "ctrl+c":
+				return m, tea.Quit
+			}
+
 		}
 	}
 
@@ -329,7 +372,7 @@ func (m model) View() string {
 		s += m.table.View()
 		s += "\n\n"
 
-	case addAsset, addPosition, removeAsset, removePosition:
+	case addAsset, addPosition, removeAsset, removePosition, updateAsset:
 		s += m.inputs.View()
 		s += "\n\n"
 	}
